@@ -1,9 +1,49 @@
-Vagrant.configure(2) do |config|
- config.vm.box = "ubuntu/trusty64"
- config.vm.hostname = "Boen"
- config.vm.network "forwarded_port", guest: 80, host: 1234
- 
- config.vm.provision "shell", path: "provision_apache.sh"
- config.vm.provision "shell", path: "provision_php.sh"
- config.vm.provision "shell", path: "provision_git.sh"
+# Defines our Vagrant environment
+#
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.ssh.insert_key = false
+  # create mgmt node
+  config.vm.define :mgmt do |mgmt_config|
+      mgmt_config.vm.box = "ubuntu/trusty64"
+      mgmt_config.vm.hostname = "mgmt"
+      mgmt_config.vm.network :private_network, ip: "10.0.15.10"
+      mgmt_config.vm.network :forwarded_port, guest: 22, host: 2222, id: "ssh", disabled: true
+      mgmt_config.vm.network :forwarded_port, guest: 22, host: 6666, auto_correct: true
+      mgmt_config.vm.provider "virtualbox" do |vb|
+        vb.memory = "256"
+        vb.cpus = 2
+      end
+      mgmt_config.vm.provision :shell, path: "bootstrap-mgmt.sh"
+  end
+
+  # create load balancer
+  config.vm.define :lb do |lb_config|
+      lb_config.vm.box = "ubuntu/trusty64"
+      lb_config.vm.hostname = "lb"
+      lb_config.vm.network :private_network, ip: "10.0.15.11"
+      lb_config.vm.network :forwarded_port, guest: 80, host: 1234, auto_correct: true
+      lb_config.vm.provider "virtualbox" do |vb|
+        vb.memory = "256"
+        vb.cpus = 2
+      end
+  end
+
+  # create some web servers
+  # https://docs.vagrantup.com/v2/vagrantfile/tips.html
+  (1..6).each do |i|
+    config.vm.define "web#{i}" do |node|
+        node.vm.box = "ubuntu/trusty64"
+        node.vm.hostname = "web#{i}"
+        node.vm.network :private_network, ip: "10.0.15.2#{i}"
+        node.vm.network "forwarded_port", guest: 80, host: "808#{i}", auto_correct: true
+        node.vm.provider "virtualbox" do |vb|
+          vb.memory = "256"
+          vb.cpus = 2
+        end
+    end
+  end
+
 end
